@@ -20,9 +20,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+script('gadgetbridge', 'gadgetbridge');
 ?>
 
 <div id="app-navigation">
+	<ul>
+		<li>
+			<a id="import-data" href="#">
+				<img alt="" src="<?php print_unescaped(image_path('core', 'actions/upload.svg')); ?>">
+				<span><?php p($l->t('Import data')) ?></span>
+			</a>
+		</li>
+	</ul>
 </div>
 
 

@@ -22,5 +22,6 @@
 return [
 	'routes' => [
 		['name' => 'frontend#show', 'url' => '/', 'verb' => 'GET'],
+		['name' => 'import#localFile', 'url' => '/import', 'verb' => 'POST'],
 	],
 ];
