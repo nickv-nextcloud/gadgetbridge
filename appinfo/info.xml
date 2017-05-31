@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<info>
+	<id>gadgetbridge</id>
+	<name>Gadget bridge</name>
+	<summary>Nextcloud app to visualize the data of your gadgetbridge data </summary>
+	<description><![CDATA[Nextcloud app to visualize the data of your gadgetbridge data ]]></description>
+
+	<licence>AGPL</licence>
+	<author>Joas Schilling</author>
+
+	<category>tools</category>
+
+	<website>https://github.com/nextcloud/gadgetbridge</website>
+	<bugs>https://github.com/nextcloud/gadgetbridge/issues</bugs>
+	<repository type="git">https://github.com/nextcloud/gadgetbridge.git</repository>
+
+	<version>0.5.0</version>
+	<namespace>GadgetBridge</namespace>
+
+	<dependencies>
+		<nextcloud min-version="12" max-version="13" />
+	</dependencies>
+
+	<navigations>
+		<navigation>
+			<name>Gadget bridge</name>
+			<route>gadgetbridge.frontend.show</route>
+			<order>10</order>
+		</navigation>
+	</navigations>
+</info>
