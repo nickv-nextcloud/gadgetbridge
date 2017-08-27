@@ -45,15 +45,18 @@
 			var self = this;
 
 			$.ajax({
-				url: OC.generateUrl('apps/gadgetbridge/import'),
+				url: OC.linkToOCS('apps/gadgetbridge/api/v1', 2) + 'database',
 				type: 'POST',
+				beforeSend: function (request) {
+					request.setRequestHeader('Accept', 'application/json');
+				},
 				data: {
 					path: path
 				},
 				success: function(result) {
 					// TODO set title with file name
-					$('#app-content').attr('data-database', result.fileId);
-					self.databaseFileId = result.fileId;
+					self.databaseFileId = result.ocs.data.fileId;
+					$('#app-content').attr('data-database', self.databaseFileId);
 					self._loadDevices();
 				},
 				error: function() {

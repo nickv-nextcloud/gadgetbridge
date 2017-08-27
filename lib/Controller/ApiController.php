@@ -28,6 +28,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
 use OCP\Files\File;
+use OCP\Files\InvalidPathException;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\IConfig;
@@ -52,6 +53,53 @@ class ApiController extends OCSController {
 		$this->userSession = $userSession;
 		$this->rootFolder = $rootFolder;
 		$this->config = $config;
+	}
+
+	/**
+	 * @NoAdminRequired
+	 *
+	 * @param string $path
+	 * @return DataResponse
+	 */
+	public function selectDatabase($path) {
+		$user = $this->userSession->getUser();
+		$userFolder = $this->rootFolder->getUserFolder($user->getUID());
+
+		try {
+			$dataToImport = $userFolder->get($path);
+			$fileId = $dataToImport->getId();
+		} catch (NotFoundException $e) {
+			return new DataResponse([], Http::STATUS_NOT_FOUND);
+		} catch (InvalidPathException $e) {
+			return new DataResponse([], Http::STATUS_NOT_FOUND);
+		}
+
+		if (!$dataToImport instanceof File) {
+			return new DataResponse([], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		/** @var File $dataToImport */
+		$storage = $dataToImport->getStorage();
+		$tmpPath = $storage->getLocalFile($dataToImport->getInternalPath());
+
+		$factory = new \OC\DB\ConnectionFactory(\OC::$server->getSystemConfig());
+		try {
+			$connection = $factory->getConnection('sqlite3', [
+				'user' => '',
+				'password' => '',
+				'path' => $tmpPath,
+				'sqlite.journal_mode' => 'WAL',
+				'tablePrefix' => '',
+			]);
+		} catch (DBALException $e) {
+			return new DataResponse([], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$connection->close();
+
+		$this->config->setUserValue($user->getUID(), 'gadgetbridge', 'database_file', $fileId);
+
+		return new DataResponse(['fileId' => $fileId]);
 	}
 
 	/**

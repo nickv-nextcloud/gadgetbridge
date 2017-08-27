@@ -14,7 +14,7 @@
 	<bugs>https://github.com/nextcloud/gadgetbridge/issues</bugs>
 	<repository type="git">https://github.com/nextcloud/gadgetbridge.git</repository>
 
-	<version>0.5.4</version>
+	<version>0.5.5</version>
 	<namespace>GadgetBridge</namespace>
 
 	<dependencies>

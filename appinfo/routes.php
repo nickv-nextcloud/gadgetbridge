@@ -22,9 +22,9 @@
 return [
 	'routes' => [
 		['name' => 'frontend#show', 'url' => '/', 'verb' => 'GET'],
-		['name' => 'import#localFile', 'url' => '/import', 'verb' => 'POST'],
 	],
 	'ocs' => [
+		['name' => 'api#selectDatabase', 'url' => '/api/v1/database', 'verb' => 'POST'],
 		['name' => 'api#getDevices', 'url' => '/api/v1/{databaseId}/devices', 'verb' => 'GET'],
 		['name' => 'api#getDeviceData', 'url' => '/api/v1/{databaseId}/devices/{deviceId}', 'verb' => 'GET'],
 	],
