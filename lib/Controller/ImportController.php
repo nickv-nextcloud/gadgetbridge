@@ -27,8 +27,10 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\File;
+use OCP\Files\InvalidPathException;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
+use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -41,12 +43,15 @@ class ImportController extends Controller {
 	protected $userSession;
 	/** @var IRootFolder */
 	protected $rootFolder;
+	/** @var IConfig */
+	protected $config;
 
-	public function __construct($appName, IRequest $request, IDBConnection $connection, IUserSession $userSession, IRootFolder $rootFolder) {
+	public function __construct($appName, IRequest $request, IDBConnection $connection, IUserSession $userSession, IRootFolder $rootFolder, IConfig $config) {
 		parent::__construct($appName, $request);
 		$this->connection = $connection;
 		$this->userSession = $userSession;
 		$this->rootFolder = $rootFolder;
+		$this->config = $config;
 	}
 
 	/**
@@ -61,7 +66,10 @@ class ImportController extends Controller {
 
 		try {
 			$dataToImport = $userFolder->get($path);
+			$fileId = $dataToImport->getId();
 		} catch (NotFoundException $e) {
+			return new DataResponse([], Http::STATUS_NOT_FOUND);
+		} catch (InvalidPathException $e) {
 			return new DataResponse([], Http::STATUS_NOT_FOUND);
 		}
 
@@ -85,6 +93,12 @@ class ImportController extends Controller {
 		} catch (DBALException $e) {
 			return new DataResponse([], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
+
+		$connection->close();
+
+		$this->config->setUserValue($user->getUID(), 'gadgetbridge', 'database_file', $fileId);
+
+		return new DataResponse(['fileId' => $fileId]);
 
 		$query = $connection->getQueryBuilder();
 		$query->automaticTablePrefix(false);

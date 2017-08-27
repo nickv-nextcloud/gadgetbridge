@@ -23,12 +23,22 @@ namespace OCA\GadgetBridge\Controller;
 
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IConfig;
 use OCP\IRequest;
+use OCP\IUserSession;
 
 class FrontendController extends Controller {
 
-	public function __construct($appName, IRequest $request) {
+	/** @var IUserSession */
+	protected $userSession;
+	/** @var IConfig */
+	protected $config;
+
+	public function __construct($appName, IRequest $request, IUserSession $userSession, IConfig $config) {
 		parent::__construct($appName, $request);
+
+		$this->userSession = $userSession;
+		$this->config = $config;
 	}
 
 	/**
@@ -38,6 +48,9 @@ class FrontendController extends Controller {
 	 * @return TemplateResponse
 	 */
 	public function show() {
-		return new TemplateResponse('gadgetbridge', 'index');
+		$user = $this->userSession->getUser();
+		return new TemplateResponse('gadgetbridge', 'index', [
+			'database' => (int) $this->config->getUserValue($user->getUID(), 'gadgetbridge', 'database_file', 0),
+		]);
 	}
 }

@@ -21,6 +21,10 @@
  *
  */
 script('gadgetbridge', 'gadgetbridge');
+script('gadgetbridge', 'Chart');
+
+/** @var $l \OCP\IL10N */
+/** @var $_ array */
 ?>
 
 <div id="app-navigation">
@@ -28,21 +32,22 @@ script('gadgetbridge', 'gadgetbridge');
 		<li>
 			<a id="import-data" href="#">
 				<img alt="" src="<?php print_unescaped(image_path('core', 'actions/upload.svg')); ?>">
-				<span><?php p($l->t('Import data')) ?></span>
+				<span><?php p($l->t('Select database')) ?></span>
 			</a>
 		</li>
 	</ul>
 </div>
 
 
-<div id="app-content">
-	<div id="emptycontent" class="FIXME-hidden">
+<div id="app-content" data-database="<?php p($_['database']); ?>">
+	<div id="emptycontent" class="<?php p($_['database'] === 0 ? '' : 'hidden'); ?>">
 		<div class="icon-activity"></div>
 		<h2><?php p($l->t('No data found')); ?></h2>
 		<p><?php p($l->t('Import the data from your Android app')); ?></p>
 	</div>
 
 	<div id="container">
+		<canvas id="steps" width="400px" height="200px"></canvas>
 	</div>
 
 	<div id="" class="hidden FIXME icon-loading"></div>
