@@ -22,11 +22,11 @@
 namespace OCA\GadgetBridge\Controller;
 
 use Doctrine\DBAL\DBALException;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use OC\DB\ConnectionFactory;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Files\File;
 use OCP\Files\InvalidPathException;
 use OCP\Files\IRootFolder;
@@ -134,9 +134,14 @@ class ApiController extends OCSController {
 	 *
 	 * @param int $databaseId
 	 * @param int $deviceId
+	 * @param int $year
+	 * @param int $month
+	 * @param int $day
+	 * @param int $hours
+	 * @param int $minutes
 	 * @return DataResponse
 	 */
-	public function getDeviceData($databaseId, $deviceId) {
+	public function getDeviceData($databaseId, $deviceId, $year, $month, $day, $hours, $minutes) {
 		try {
 			$connection = $this->getConnection($databaseId);
 		} catch (NotFoundException $e) {
@@ -144,7 +149,6 @@ class ApiController extends OCSController {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse([], Http::STATUS_BAD_REQUEST);
 		}
-
 
 		$query = $connection->getQueryBuilder();
 		$query->automaticTablePrefix(false);
@@ -156,8 +160,18 @@ class ApiController extends OCSController {
 		$device = $result->fetch();
 		$result->closeCursor();
 
+		$end = \DateTime::createFromFormat(
+			'Y.n.j G:i:s',
+			$year . '.' . $month . '.' . $day . ' ' .
+				$hours . ':' . (($minutes < 10) ? '0': '') . $minutes . ':00');
+		$start = clone $end;
+		$start->sub(new \DateInterval('P1D'));
+
+		$b = $start->getTimestamp();
+		$a = $end->getTimestamp();
+
 		if ($device['TYPE'] === '11') {
-			return $this->getMiBandData($connection, $device);
+			return $this->getMiBandData($connection, $device, $start, $end);
 		}
 
 		return new DataResponse([], Http::STATUS_UNPROCESSABLE_ENTITY);
@@ -166,22 +180,45 @@ class ApiController extends OCSController {
 	/**
 	 * @param IDBConnection $connection
 	 * @param array $device
+	 * @param \DateTime $start
+	 * @param \DateTime $end
 	 * @return DataResponse
 	 */
-	protected function getMiBandData(IDBConnection $connection, array $device) {
+	protected function getMiBandData(IDBConnection $connection, array $device, \DateTime $start, \DateTime $end) {
 		$query = $connection->getQueryBuilder();
 		$query->automaticTablePrefix(false);
-		$query->select('*')
+		$query
+			->select('*')
 			->from('MI_BAND_ACTIVITY_SAMPLE')
-			->where($query->expr()->eq('DEVICE_ID', $query->createNamedParameter($device['_id'])));
-
-		//FIXME proper pagination
-		$query->setMaxResults(1000)
-			->orderBy('TIMESTAMP', 'DESC');
+			->where($query->expr()->eq('DEVICE_ID', $query->createNamedParameter($device['_id'])))
+			->andWhere($query->expr()->gte('TIMESTAMP', $query->createNamedParameter($start->getTimestamp())))
+			->andWhere($query->expr()->lte('TIMESTAMP', $query->createNamedParameter($end->getTimestamp())))
+			->orderBy('TIMESTAMP', 'ASC')
+		;
 
 		$result = $query->execute();
 		$data = $result->fetchAll();
 		$result->closeCursor();
+
+		if (isset($data[0]['RAW_KIND'])) {
+			$rawKind = (int) $data[0]['RAW_KIND'];
+			switch ($rawKind) {
+				case 1:  // Activity
+				case 3:  // No wear
+				case 9:  // Light sleep
+				case 11: // Deep sleep
+				case 12: // Wake up
+				case 6:  // Charging
+					// Nothing to do
+					break;
+
+				case -1: // Unset
+				case 0:  // Unchanged
+				case 10: // Ignore
+				default:
+					$data[0]['RAW_KIND'] = $this->getLastMiBandActivity($connection, $device, $start->getTimestamp());
+			}
+		}
 
 		/**
 		 * (int) $row['DEVICE_ID']
@@ -195,26 +232,36 @@ class ApiController extends OCSController {
 		return new DataResponse($data);
 	}
 
-	protected function temp() {
+	protected function getLastMiBandActivity(IDBConnection $connection, array $device, $beforeTimestamp) {
+		$query = $connection->getQueryBuilder();
+		$query->automaticTablePrefix(false);
+		$query
+			->select('RAW_KIND')
+			->from('MI_BAND_ACTIVITY_SAMPLE')
+			->where($query->expr()->eq('DEVICE_ID', $query->createNamedParameter($device['_id'])))
+			->andWhere($query->expr()->lte('TIMESTAMP', $query->createNamedParameter($beforeTimestamp)))
+			->andWhere($query->expr()->in('RAW_KIND', $query->createNamedParameter([
+				1,  // Activity
+				3,  // No wear
+				9,  // Light sleep
+				11, // Deep sleep
+				12, // Wake up
+				6,  // Charging
+			], IQueryBuilder::PARAM_INT_ARRAY)))
+			->orderBy('TIMESTAMP', 'DESC')
+			->setMaxResults(1)
+		;
+
 		$result = $query->execute();
-		while ($row = $result->fetch()) {
-			$insert->setParameter('user', $user->getUID())
-				->setParameter('device_id', (int) $row['DEVICE_ID'])
-				->setParameter('user_id', (int) $row['USER_ID'])
-				->setParameter('datetime', \DateTime::createFromFormat('U', (int) $row['TIMESTAMP']), 'datetime')
-				->setParameter('raw_intensity', (int) $row['RAW_INTENSITY'])
-				->setParameter('steps', (int) $row['STEPS'])
-				->setParameter('raw_kind', (int) $row['RAW_KIND'])
-				->setParameter('heart_rate', (int) $row['HEART_RATE']);
-			try {
-				$insert->execute();
-			} catch (UniqueConstraintViolationException $e) {
-				// FIXME use offset on select
-			}
-		}
+		$step = $result->fetch();
 		$result->closeCursor();
 
-		$connection->close();
+		if (!$step) {
+			// No data before
+			return 3; // No wear
+		}
+
+		return $step['RAW_KIND'];
 	}
 
 	/**

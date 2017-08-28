@@ -26,6 +26,6 @@ return [
 	'ocs' => [
 		['name' => 'api#selectDatabase', 'url' => '/api/v1/database', 'verb' => 'POST'],
 		['name' => 'api#getDevices', 'url' => '/api/v1/{databaseId}/devices', 'verb' => 'GET'],
-		['name' => 'api#getDeviceData', 'url' => '/api/v1/{databaseId}/devices/{deviceId}', 'verb' => 'GET'],
+		['name' => 'api#getDeviceData', 'url' => '/api/v1/{databaseId}/devices/{deviceId}/samples/{year}/{month}/{day}/{hours}/{minutes}', 'verb' => 'GET'],
 	],
 ];

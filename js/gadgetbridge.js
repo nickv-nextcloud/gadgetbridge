@@ -13,6 +13,7 @@
 	OCA.GadgetBridge = {
 		databaseFileId: 0,
 		selectedDevice: 0,
+		lastRawKind: 0,
 
 		_deviceTemplate: null,
 		_deviceHTML: '' +
@@ -80,14 +81,14 @@
 						$device.on('click', function() {
 							self.selectedDevice = $(this).attr('data-device-id');
 							if (self.selectedDevice !== $(this).attr('data-device-id')) {
-								self._loadDevice();
+								self._loadDevice(moment().format('YYYY/MM/DD/HH/mm'));
 							}
 						});
 						$('#app-navigation ul').append($device);
 
 						if (singleDeviceDatabase) {
 							self.selectedDevice = device._id;
-							self._loadDevice();
+							self._loadDevice(moment().format('YYYY/MM/DD/HH/mm'));
 						}
 					});
 				},
@@ -97,40 +98,40 @@
 			});
 		},
 
-		_loadDevice: function() {
+		_loadDevice: function(date) {
 			var self = this;
 			$.ajax({
-				url: OC.linkToOCS('apps/gadgetbridge/api/v1', 2) + this.databaseFileId + '/devices/' + self.selectedDevice,
+				url: OC.linkToOCS('apps/gadgetbridge/api/v1', 2) + this.databaseFileId + '/devices/' + self.selectedDevice + '/samples/' + date,
 				beforeSend: function (request) {
 					request.setRequestHeader('Accept', 'application/json');
 				},
 				success: function(result) {
 					console.log(result.ocs.data.length);
 
-					var stepData = [],
+					var labelData = [],
+						kindData = [],
+						stepData = [],
+						activityColor = [],
 						heartRate = [],
-						labelData = [],
-						i = 0,
+						kind = 0,
 						lastHeartRate = null;
 					_.each(result.ocs.data, function(tick) {
-						console.log(tick.TIMESTAMP);
+						labelData.push(moment(tick.TIMESTAMP * 1000).calendar());
 
-						if (tick.STEPS > 0) {
-							stepData.unshift(Math.min(tick.STEPS, 250));
-						} else {
-							stepData.unshift(0);
-						}
+						kind = self._getKind(tick.RAW_KIND);
+						kindData.push(kind * 10);
+						activityColor.push(self._getActivityColor(kind));
+						stepData.push(self._getSteps(kind, tick.STEPS));
 
 						if (tick.HEART_RATE > 0 && tick.HEART_RATE < 255) {
 							lastHeartRate = tick.HEART_RATE;
-							heartRate.unshift(tick.HEART_RATE);
+							heartRate.push(tick.HEART_RATE);
 						} else if (tick.HEART_RATE > 0) {
-							heartRate.unshift(lastHeartRate);
+							heartRate.push(lastHeartRate);
 							lastHeartRate = null;
 						} else {
-							heartRate.unshift(null);
+							heartRate.push(null);
 						}
-						labelData.unshift(moment(tick.TIMESTAMP * 1000).calendar());
 					});
 
 					var ctx = $('#steps');
@@ -140,9 +141,10 @@
 							labels: labelData,
 							datasets: [
 								{
-									label: 'Steps',
+									label: 'Activity',
 									data: stepData,
-									backgroundColor: '#00CC00'
+									backgroundColor: activityColor,
+									barThickness: 100
 								},
 								{
 									label: 'Heart rate',
@@ -157,11 +159,18 @@
 							]
 						},
 						options: {
+							legend: {
+								display: false
+							},
 							scales: {
 								xAxes: [{
 									gridLines: {
-										offsetGridLines: false
-									}
+										offsetGridLines: true
+									},
+									stacked: true
+								}],
+								yAxes: [{
+									stacked: true
 								}]
 							}
 						}
@@ -171,6 +180,60 @@
 					OC.Notification. showTemporary(t('gadgetbridge', 'Device data could not be loaded from the database'));
 				}
 			});
+		},
+
+		_getKind: function(current) {
+			current = parseInt(current, 10);
+			switch (current) {
+				case 1:  // Activity
+				case 3:  // No wear
+				case 9:  // Light sleep
+				case 11: // Deep sleep
+				case 12: // Wake up
+					this.lastRawKind = current;
+					return current;
+
+				case 6:  // Charging
+					current = 3; // No wear
+					this.lastRawKind = 3;
+					return 3;
+
+				case -1: // Unset
+				case 0:  // Unchanged
+				case 10: // Ignore
+				default:
+					return this.lastRawKind;
+			}
+		},
+
+		_getActivityColor: function(current) {
+			switch (current) {
+				case 3:  // No wear
+				case 6:  // Charging
+					return '#AAAAAA';
+
+				case 9:  // Light sleep
+					return '#2ECCFA';
+				case 11: // Deep sleep
+					return '#0040FF';
+
+				case 1:  // Activity
+				case 12: // Wake up
+				default:
+					return '#3ADF00';
+			}
+		},
+
+		_getSteps: function(current, steps) {
+			switch (current) {
+				case 3:  // No wear
+				case 6:  // Charging
+				case 9:  // Light sleep
+				case 11: // Deep sleep
+				case 12: // Wake up
+				case 1:  // Activity
+					return Math.min(250, Math.max(10, steps));
+			}
 		}
 	};
 })(OC, OCA, _);
