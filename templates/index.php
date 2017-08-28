@@ -20,6 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+style('gadgetbridge', 'gadgetbridge');
 script('gadgetbridge', 'gadgetbridge');
 script('gadgetbridge', 'Chart');
 
@@ -29,17 +30,18 @@ script('gadgetbridge', 'Chart');
 
 <div id="app-navigation">
 	<ul>
-		<li>
+		<li class="open-database">
 			<a id="import-data" href="#">
 				<img alt="" src="<?php print_unescaped(image_path('core', 'actions/upload.svg')); ?>">
 				<span><?php p($l->t('Select database')) ?></span>
 			</a>
 		</li>
+		<li class="settings-caption <?php p(empty($_['databasePath']) ? 'hidden' : ''); ?>"><?php p($_['databasePath']); ?></li>
 	</ul>
 </div>
 
 
-<div id="app-content" data-database="<?php p($_['database']); ?>">
+<div id="app-content" data-database-id="<?php p($_['databaseId']); ?>" data-database-path="<?php p($_['databasePath']); ?>">
 	<div id="emptycontent" class="<?php p($_['database'] === 0 ? '' : 'hidden'); ?>">
 		<div class="icon-activity"></div>
 		<h2><?php p($l->t('No data found')); ?></h2>
@@ -47,7 +49,7 @@ script('gadgetbridge', 'Chart');
 	</div>
 
 	<div id="container">
-		<canvas id="steps" width="400px" height="200px"></canvas>
+		<canvas id="steps"></canvas>
 	</div>
 
 	<div id="" class="hidden FIXME icon-loading"></div>

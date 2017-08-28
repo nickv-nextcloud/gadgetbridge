@@ -23,6 +23,7 @@ namespace OCA\GadgetBridge\Controller;
 
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\Files\IRootFolder;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -31,13 +32,16 @@ class FrontendController extends Controller {
 
 	/** @var IUserSession */
 	protected $userSession;
+	/** @var IRootFolder */
+	protected $rootFolder;
 	/** @var IConfig */
 	protected $config;
 
-	public function __construct($appName, IRequest $request, IUserSession $userSession, IConfig $config) {
+	public function __construct($appName, IRequest $request, IUserSession $userSession, IRootFolder $rootFolder, IConfig $config) {
 		parent::__construct($appName, $request);
 
 		$this->userSession = $userSession;
+		$this->rootFolder = $rootFolder;
 		$this->config = $config;
 	}
 
@@ -49,8 +53,25 @@ class FrontendController extends Controller {
 	 */
 	public function show() {
 		$user = $this->userSession->getUser();
+		$databaseId = (int) $this->config->getUserValue($user->getUID(), 'gadgetbridge', 'database_file', 0);
+		$databasePath = '';
+
+		if ($databaseId > 0) {
+			$userFolder = $this->rootFolder->getUserFolder($user->getUID());
+
+			$files = $userFolder->getById($databaseId);
+			if (!empty($files)) {
+				$tmpPath = $files[0]->getPath();
+				$tmpPath = explode('/', $tmpPath, 4);
+				if (isset($tmpPath[3])) {
+					$databasePath = $tmpPath[3];
+				}
+			}
+		}
+
 		return new TemplateResponse('gadgetbridge', 'index', [
-			'database' => (int) $this->config->getUserValue($user->getUID(), 'gadgetbridge', 'database_file', 0),
+			'databaseId' => $databaseId,
+			'databasePath' => $databasePath,
 		]);
 	}
 }

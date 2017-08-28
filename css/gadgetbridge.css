@@ -1,0 +1,12 @@
+.settings-caption {
+	font-weight: bold;
+	line-height: 44px;
+	padding: 0 12px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+canvas {
+	margin: 15px;
+	width: 95% !important;
+}

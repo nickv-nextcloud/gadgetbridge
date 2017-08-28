@@ -191,7 +191,7 @@ class ApiController extends OCSController {
 			->select('*')
 			->from('MI_BAND_ACTIVITY_SAMPLE')
 			->where($query->expr()->eq('DEVICE_ID', $query->createNamedParameter($device['_id'])))
-			->andWhere($query->expr()->gte('TIMESTAMP', $query->createNamedParameter($start->getTimestamp())))
+			->andWhere($query->expr()->gte('TIMESTAMP', $query->createNamedParameter($start->getTimestamp() - 60000)))
 			->andWhere($query->expr()->lte('TIMESTAMP', $query->createNamedParameter($end->getTimestamp())))
 			->orderBy('TIMESTAMP', 'ASC')
 		;

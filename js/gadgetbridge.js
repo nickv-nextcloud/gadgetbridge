@@ -17,7 +17,7 @@
 
 		_deviceTemplate: null,
 		_deviceHTML: '' +
-		'<li data-device-id="{{_id}}">' +
+		'<li class="device" data-device-id="{{_id}}">' +
 			'<a id="import-data" href="#">' +
 				'<img alt="" src="<?php print_unescaped(image_path(\'core\', \'actions/upload.svg\')); ?>">' +
 				'<span>{{NAME}}</span> <em>({{IDENTIFIER}})</em>' +
@@ -26,12 +26,8 @@
 
 		initialise: function() {
 			$('#import-data').on('click', _.bind(this._importButtonOnClick, this));
-			this.databaseFileId = $('#app-content').attr('data-database');
 			this._deviceTemplate = Handlebars.compile(this._deviceHTML);
-			console.log(this.databaseFileId);
-			if (this.databaseFileId > 0) {
-				this._loadDevices();
-			}
+			this._selectedDatabase($('#app-content').attr('data-database-id'), $('#app-content').attr('data-database-path'));
 		},
 
 		_importButtonOnClick: function(e) {
@@ -40,6 +36,18 @@
 				t('gadgetbridge', 'Choose a file to import'),
 				_.bind(this._filePickerCallback, this)
 			)
+		},
+
+		_selectedDatabase: function(id, path) {
+			this.databaseFileId = id;
+			this.databaseFilePath = path;
+			$('.settings-caption').text(this.databaseFilePath);
+			$('#app-content').attr('data-database-id', this.databaseFileId);
+			$('#app-content').attr('data-database-path', this.databaseFilePath);
+
+			if (this.databaseFileId > 0) {
+				this._loadDevices();
+			}
 		},
 
 		_filePickerCallback: function(path) {
@@ -55,10 +63,10 @@
 					path: path
 				},
 				success: function(result) {
-					// TODO set title with file name
-					self.databaseFileId = result.ocs.data.fileId;
-					$('#app-content').attr('data-database', self.databaseFileId);
-					self._loadDevices();
+					self._selectedDatabase(
+						result.ocs.data.fileId,
+						path.substring(1) // Remove leading slash
+					);
 				},
 				error: function() {
 					OC.Notification. showTemporary(t('gadgetbridge', 'The selected file is not a readable Gadgetbridge database'));
@@ -74,12 +82,16 @@
 					request.setRequestHeader('Accept', 'application/json');
 				},
 				success: function(result) {
+					// TODO Remove previous devices
+
+
 					var singleDeviceDatabase = result.ocs.data.length === 1;
 
 					_.each(result.ocs.data, function(device) {
 						var $device = $(self._deviceTemplate(device));
 						$device.on('click', function() {
 							self.selectedDevice = $(this).attr('data-device-id');
+							$(this).addClass('active');
 							if (self.selectedDevice !== $(this).attr('data-device-id')) {
 								self._loadDevice(moment().format('YYYY/MM/DD/HH/mm'));
 							}
@@ -89,6 +101,7 @@
 						if (singleDeviceDatabase) {
 							self.selectedDevice = device._id;
 							self._loadDevice(moment().format('YYYY/MM/DD/HH/mm'));
+							$device.addClass('active');
 						}
 					});
 				},
@@ -106,8 +119,6 @@
 					request.setRequestHeader('Accept', 'application/json');
 				},
 				success: function(result) {
-					console.log(result.ocs.data.length);
-
 					var labelData = [],
 						kindData = [],
 						stepData = [],
@@ -118,7 +129,7 @@
 					_.each(result.ocs.data, function(tick) {
 						labelData.push(moment(tick.TIMESTAMP * 1000).calendar());
 
-						kind = self._getKind(tick.RAW_KIND);
+						kind = self._getKind(tick.RAW_KIND, tick.HEART_RATE);
 						kindData.push(kind * 10);
 						activityColor.push(self._getActivityColor(kind));
 						stepData.push(self._getSteps(kind, tick.STEPS));
@@ -182,10 +193,16 @@
 			});
 		},
 
-		_getKind: function(current) {
+		_getKind: function(current, heartRate) {
 			current = parseInt(current, 10);
 			switch (current) {
 				case 1:  // Activity
+					heartRate = parseInt(heartRate, 10);
+					if (heartRate > 30 && heartRate !== 255) {
+						current = 9; // Light sleep
+					}
+					// break;
+
 				case 3:  // No wear
 				case 9:  // Light sleep
 				case 11: // Deep sleep

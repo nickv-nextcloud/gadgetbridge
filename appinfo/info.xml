@@ -23,7 +23,7 @@
 
 	<navigations>
 		<navigation>
-			<name>Gadget bridge</name>
+			<name>Gadgetbridge</name>
 			<route>gadgetbridge.frontend.show</route>
 			<order>10</order>
 		</navigation>
