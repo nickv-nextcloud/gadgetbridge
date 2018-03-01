@@ -128,8 +128,7 @@
 						lastHeartRate = null;
 					_.each(result.ocs.data, function(tick) {
 						labelData.push(moment(tick.TIMESTAMP * 1000).calendar());
-
-						kind = self._getKind(tick.RAW_KIND, tick.HEART_RATE);
+						kind = parseInt(tick.RAW_KIND, 10);
 						kindData.push(kind * 10);
 						activityColor.push(self._getActivityColor(kind));
 						stepData.push(self._getSteps(kind, tick.STEPS));
@@ -193,63 +192,30 @@
 			});
 		},
 
-		_getKind: function(current, heartRate) {
-			current = parseInt(current, 10);
-			switch (current) {
-				case 1:  // Activity
-					heartRate = parseInt(heartRate, 10);
-					if (heartRate > 30 && heartRate !== 255) {
-						current = 9; // Light sleep
-					}
-					// break;
-
-				case 3:  // No wear
-				case 9:  // Light sleep
-				case 11: // Deep sleep
-				case 12: // Wake up
-					this.lastRawKind = current;
-					return current;
-
-				case 6:  // Charging
-					current = 3; // No wear
-					this.lastRawKind = 3;
-					return 3;
-
-				case -1: // Unset
-				case 0:  // Unchanged
-				case 10: // Ignore
-				default:
-					return this.lastRawKind;
-			}
-		},
-
 		_getActivityColor: function(current) {
 			switch (current) {
-				case 3:  // No wear
-				case 6:  // Charging
-					return '#AAAAAA';
-
-				case 9:  // Light sleep
-					return '#2ECCFA';
-				case 11: // Deep sleep
-					return '#0040FF';
-
-				case 1:  // Activity
-				case 12: // Wake up
-				default:
+				case 1: // Activity
 					return '#3ADF00';
+				case 2: // Light sleep
+					return '#2ECCFA';
+				case 4: // Deep sleep
+					return '#0040FF';
+				case 8: // Not worn
+					return '#AAAAAA';
+				default:
+					return '#AAAAAA';
 			}
 		},
 
 		_getSteps: function(current, steps) {
 			switch (current) {
-				case 3:  // No wear
-				case 6:  // Charging
-				case 9:  // Light sleep
-				case 11: // Deep sleep
-				case 12: // Wake up
-				case 1:  // Activity
+				case 1: // Activity
+				case 2: // Light sleep
+				case 4: // Deep sleep
+				case 8: // Not worn
 					return Math.min(250, Math.max(10, steps));
+				default:
+					return 2;
 			}
 		}
 	};

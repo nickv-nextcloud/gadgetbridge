@@ -23,6 +23,7 @@ namespace OCA\GadgetBridge\Controller;
 
 use Doctrine\DBAL\DBALException;
 use OC\DB\ConnectionFactory;
+use OCA\GadgetBridge\ActivityKind;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
@@ -37,6 +38,16 @@ use OCP\IRequest;
 use OCP\IUserSession;
 
 class ApiController extends OCSController {
+	const TYPE_UNSET = -1;
+	const TYPE_NO_CHANGE = 0;
+	const TYPE_ACTIVITY = 1;
+	const TYPE_RUNNING = 2;
+	const TYPE_NONWEAR = 3;
+	const TYPE_CHARGING = 6;
+	const TYPE_LIGHT_SLEEP = 9;
+	const TYPE_IGNORE = 10;
+	const TYPE_DEEP_SLEEP = 11;
+	const TYPE_WAKE_UP = 12;
 
 	/** @var IDBConnection */
 	protected $connection;
@@ -200,25 +211,8 @@ class ApiController extends OCSController {
 		$data = $result->fetchAll();
 		$result->closeCursor();
 
-		if (isset($data[0]['RAW_KIND'])) {
-			$rawKind = (int) $data[0]['RAW_KIND'];
-			switch ($rawKind) {
-				case 1:  // Activity
-				case 3:  // No wear
-				case 9:  // Light sleep
-				case 11: // Deep sleep
-				case 12: // Wake up
-				case 6:  // Charging
-					// Nothing to do
-					break;
-
-				case -1: // Unset
-				case 0:  // Unchanged
-				case 10: // Ignore
-				default:
-					$data[0]['RAW_KIND'] = $this->getLastMiBandActivity($connection, $device, $start->getTimestamp());
-			}
-		}
+		$this->lastValidKind = $this->getLastMiBandActivity($connection, $device, $start->getTimestamp());
+		$data = array_map([$this, 'postProcessing'], $data);
 
 		/**
 		 * (int) $row['DEVICE_ID']
@@ -232,6 +226,35 @@ class ApiController extends OCSController {
 		return new DataResponse($data);
 	}
 
+	protected $lastValidKind = self::TYPE_UNSET;
+
+	protected function postProcessing($data) {
+		if (empty($data)) {
+			return $data;
+		}
+
+		$rawKind = $data['RAW_KIND'];
+		if ($rawKind !== self::TYPE_UNSET) {
+			$rawKind &= 0xf;
+			$data['RAW_KIND'] = $rawKind;
+		}
+
+		switch ($rawKind) {
+			case self::TYPE_IGNORE:
+			case self::TYPE_NO_CHANGE:
+				if ($this->lastValidKind !== self::TYPE_UNSET) {
+					$data['RAW_KIND'] = $this->lastValidKind;
+				}
+				break;
+			default:
+				$this->lastValidKind = $data['RAW_KIND'];
+				break;
+		}
+
+		$data['RAW_KIND'] = $this->normalizeType($data['RAW_KIND']);
+		return $data;
+	}
+
 	protected function getLastMiBandActivity(IDBConnection $connection, array $device, $beforeTimestamp) {
 		$query = $connection->getQueryBuilder();
 		$query->automaticTablePrefix(false);
@@ -240,13 +263,14 @@ class ApiController extends OCSController {
 			->from('MI_BAND_ACTIVITY_SAMPLE')
 			->where($query->expr()->eq('DEVICE_ID', $query->createNamedParameter($device['_id'])))
 			->andWhere($query->expr()->lte('TIMESTAMP', $query->createNamedParameter($beforeTimestamp)))
-			->andWhere($query->expr()->in('RAW_KIND', $query->createNamedParameter([
-				1,  // Activity
-				3,  // No wear
-				9,  // Light sleep
-				11, // Deep sleep
-				12, // Wake up
-				6,  // Charging
+			->andWhere($query->expr()->notIn('RAW_KIND', $query->createNamedParameter([
+				self::TYPE_NO_CHANGE,
+				self::TYPE_IGNORE,
+				self::TYPE_UNSET,
+				16,
+				80,
+				96,
+				112,
 			], IQueryBuilder::PARAM_INT_ARRAY)))
 			->orderBy('TIMESTAMP', 'DESC')
 			->setMaxResults(1)
@@ -258,10 +282,30 @@ class ApiController extends OCSController {
 
 		if (!$step) {
 			// No data before
-			return 3; // No wear
+			return self::TYPE_UNSET;
 		}
 
-		return $step['RAW_KIND'];
+		return $step['RAW_KIND'] & 0xf;
+	}
+
+	protected function normalizeType($rawType) {
+		switch ($rawType) {
+			case self::TYPE_DEEP_SLEEP:
+				return ActivityKind::TYPE_DEEP_SLEEP;
+			case self::TYPE_LIGHT_SLEEP:
+				return ActivityKind::TYPE_LIGHT_SLEEP;
+			case self::TYPE_ACTIVITY:
+			case self::TYPE_RUNNING:
+			case self::TYPE_WAKE_UP:
+				return ActivityKind::TYPE_ACTIVITY;
+			case self::TYPE_NONWEAR:
+				return ActivityKind::TYPE_NOT_WORN;
+			case self::TYPE_CHARGING:
+				return ActivityKind::TYPE_NOT_WORN; //I believe it's a safe assumption
+			default:
+			case self::TYPE_UNSET: // fall through
+				return ActivityKind::TYPE_UNKNOWN;
+		}
 	}
 
 	/**
